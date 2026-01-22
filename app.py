@@ -2,21 +2,23 @@ from flask import Flask, render_template, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 import requests
+import os, json
 
 app = Flask(__name__)
 
-# 🔐 Firebase connection
-cred = credentials.Certificate("firebase_key.json")
+# 🔐 Secure Firebase Init
+firebase_json = os.environ.get("FIREBASE_KEY")
+cred = credentials.Certificate(json.loads(firebase_json))
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-WEATHER_API_KEY = "dd26e4f58a324b64702009cc22ec42bf"
+# 🔐 Secure Weather API Key
+WEATHER_API_KEY = os.environ.get("WEATHER_API_KEY")
 
 
 @app.route("/", methods=["GET", "POST"])
 def home():
 
-    # Fetch plants from Firestore
     plants_ref = db.collection("plants").stream()
     plants = [doc.to_dict() for doc in plants_ref]
 
@@ -31,7 +33,7 @@ def home():
         if not lat or not lon:
             return render_template("index.html", error="Please select location on map.")
 
-        # 🌦 WEATHER
+        # 🌦 Weather
         weather_url = (
             f"https://api.openweathermap.org/data/2.5/weather?"
             f"lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric"
@@ -44,7 +46,7 @@ def home():
         temp = res["main"]["temp"]
         humidity = res["main"]["humidity"]
 
-        # 🌱 SOILGRIDS
+        # 🌱 SoilGrids
         soil_url = (
             "https://rest.isric.org/soilgrids/v2.0/properties/query"
             f"?lat={lat}&lon={lon}"
@@ -53,8 +55,8 @@ def home():
         )
 
         headers = {"User-Agent": "Mozilla/5.0 (LandscapePlanner/1.0)"}
-        soil_res = {}
 
+        soil_res = {}
         try:
             r = requests.get(soil_url, headers=headers, timeout=10)
             if r.status_code == 200:
@@ -62,9 +64,7 @@ def home():
         except:
             pass
 
-        ph = "N/A"
-        organic_carbon = "N/A"
-        clay = "N/A"
+        ph = organic_carbon = clay = "N/A"
 
         try:
             layers = soil_res.get("properties", {}).get("layers", [])
@@ -78,17 +78,14 @@ def home():
         except:
             pass
 
-        # 🌱 RECOMMENDATIONS
-        recommended = []
-        for p in plants:
-            if (
-                p["minTemp"] <= temp <= p["maxTemp"]
-                and p["soil"] == soil
-                and p["water"] == water
-            ):
-                recommended.append(p)
+        # 🌱 Recommendation
+        recommended = [
+            p for p in plants
+            if p["minTemp"] <= temp <= p["maxTemp"]
+            and p["soil"] == soil
+            and p["water"] == water
+        ]
 
-        # 🌡 DESIGN TIPS
         tips = []
         if temp > 35:
             tips.append("Use shade trees and pergolas to reduce heat.")
@@ -116,7 +113,7 @@ def home():
         )
 
     return render_template("index.html")
-    
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
