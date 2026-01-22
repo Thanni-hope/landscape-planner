@@ -1,78 +1,163 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Landscape Planner</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Landscape Recommendation System</title>
+
+    <style>
+        body { font-family: Arial, sans-serif; background: #f2f7f3; padding: 30px; }
+        .box { background: white; padding: 20px; border-radius: 10px; max-width: 700px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; }
+        button { background: green; color: white; padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; }
+        #map { height: 300px; margin-top: 10px; }
+        input, select { padding: 6px; border-radius: 5px; border: 1px solid #ccc; }
+    </style>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 
 <body>
+<div class="box">
 
-<div class="container">
+<h1>Landscape Recommendation System</h1>
 
-    <h1>🌿 Landscape Planner</h1>
+<form method="POST">
 
-    <form method="POST">
-
-        <label>City</label>
-        <input name="city" placeholder="Enter city name" required>
-
-        <br><br>
-
-        <label>Soil Type</label>
-        <select name="soil">
-            <option value="loamy">Loamy</option>
-            <option value="sandy">Sandy</option>
-        </select>
-
-        <br><br>
-
-        <label>Water Availability</label>
-        <select name="water">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-        </select>
-
-        <button type="submit">🌱 Get Recommendation</button>
-
-    </form>
-
-    {% if error %}
-        <p class="error">{{ error }}</p>
-    {% endif %}
-
-    {% if temp %}
-    <div class="result-card">
-
-        <h3>📍 {{ city }}</h3>
-
-        <span class="badge">Soil: {{ soil }}</span>
-        <span class="badge">Water: {{ water }}</span>
-
-        <p>🌡 <b>Temperature:</b> {{ temp }} °C</p>
-        <p>💧 <b>Humidity:</b> {{ humidity }} %</p>
-
-        <h4>🌱 Recommended Plants</h4>
-
-        {% if recommended %}
-            <ul>
-            {% for p in recommended %}
-                <li>{{ p.name }}</li>
-            {% endfor %}
-            </ul>
-        {% else %}
-            <p>No suitable plants found.</p>
-        {% endif %}
-
-        <div class="tip-box">
-            🧠 <b>Maintenance Tip:</b><br>
-            {{ tip }}
-        </div>
-
+    <b>Search Location</b><br>
+    <div style="display:flex; gap:8px;">
+        <input id="searchBox" placeholder="Search city or place..." style="flex:1;">
+        <button type="button" onclick="searchPlace()">Search</button>
     </div>
-    {% endif %}
+
+    <div id="map"></div>
+
+    <p><b>Selected City:</b>
+       <span id="place">{% if city %}{{ city }}{% else %}Not selected{% endif %}</span>
+    </p>
+
+    <input type="hidden" name="lat" id="lat" value="{{ lat }}">
+    <input type="hidden" name="lon" id="lon" value="{{ lon }}">
+    <input type="hidden" name="city" id="city" value="{{ city }}">
+
+    <br>
+
+    Soil Type:
+    <select name="soil">
+        <option value="loamy">Loamy</option>
+        <option value="sandy">Sandy</option>
+    </select>
+
+    &nbsp;&nbsp;
+
+    Water Availability:
+    <select name="water">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+    </select>
+
+    <br><br>
+
+    <button type="submit">Get Recommendation</button>
+</form>
+
+<hr>
+
+{% if error %}
+<p style="color:red">{{ error }}</p>
+{% endif %}
+
+{% if temp %}
+<h3>Results for {{ city }}</h3>
+
+<p><b>Temperature:</b> {{ temp }} °C</p>
+<p><b>Humidity:</b> {{ humidity }} %</p>
+
+<h3>Soil Properties (ISRIC SoilGrids)</h3>
+<p><b>pH:</b> {{ ph }}</p>
+<p><b>Organic Carbon:</b> {{ organic_carbon }}</p>
+<p><b>Clay %:</b> {{ clay }}</p>
+
+<h3>Recommended Plants</h3>
+{% if recommended %}
+<ul>
+{% for p in recommended %}
+<li><b>{{ p.name }}</b></li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No suitable plants found.</p>
+{% endif %}
+
+<h3>Design Suggestions</h3>
+<ul>
+{% for t in tips %}
+<li>{{ t }}</li>
+{% endfor %}
+</ul>
+
+{% endif %}
 
 </div>
+
+<script>
+var map = L.map('map').setView([20.5937, 78.9629], 5);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+var marker;
+
+// restore marker after POST
+var savedLat = document.getElementById("lat").value;
+var savedLon = document.getElementById("lon").value;
+
+if (savedLat && savedLon) {
+    marker = L.marker([savedLat, savedLon]).addTo(map);
+    map.setView([savedLat, savedLon], 12);
+}
+
+map.on('click', function(e) {
+    placeMarker(e.latlng.lat, e.latlng.lng);
+});
+
+function searchPlace() {
+    var q = document.getElementById("searchBox").value;
+    if (!q) return;
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.length === 0) return alert("Location not found");
+            placeMarker(d[0].lat, d[0].lon);
+            map.setView([d[0].lat, d[0].lon], 12);
+        });
+}
+
+function placeMarker(lat, lon) {
+
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lon]).addTo(map);
+
+    document.getElementById("lat").value = lat;
+    document.getElementById("lon").value = lon;
+
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`)
+        .then(r => r.json())
+        .then(d => {
+            let city =
+                d.address.city ||
+                d.address.town ||
+                d.address.village ||
+                d.address.county ||
+                "Unknown";
+
+            document.getElementById("place").innerText = city;
+            document.getElementById("city").value = city;
+        });
+}
+</script>
 
 </body>
 </html>
