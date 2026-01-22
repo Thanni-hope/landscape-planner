@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Landscape Planner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🌿 Landscape Planner</h1>
+
+    <form method="POST">
+
+        <label>City</label>
+        <input name="city" placeholder="Enter city name" required>
+
+        <br><br>
+
+        <label>Soil Type</label>
+        <select name="soil">
+            <option value="loamy">Loamy</option>
+            <option value="sandy">Sandy</option>
+        </select>
+
+        <br><br>
+
+        <label>Water Availability</label>
+        <select name="water">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+        </select>
+
+        <button type="submit">🌱 Get Recommendation</button>
+
+    </form>
+
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+
+    {% if temp %}
+    <div class="result-card">
+
+        <h3>📍 {{ city }}</h3>
+
+        <span class="badge">Soil: {{ soil }}</span>
+        <span class="badge">Water: {{ water }}</span>
+
+        <p>🌡 <b>Temperature:</b> {{ temp }} °C</p>
+        <p>💧 <b>Humidity:</b> {{ humidity }} %</p>
+
+        <h4>🌱 Recommended Plants</h4>
+
+        {% if recommended %}
+            <ul>
+            {% for p in recommended %}
+                <li>{{ p.name }}</li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No suitable plants found.</p>
+        {% endif %}
+
+        <div class="tip-box">
+            🧠 <b>Maintenance Tip:</b><br>
+            {{ tip }}
+        </div>
+
+    </div>
+    {% endif %}
+
+</div>
+
+</body>
+</html>
